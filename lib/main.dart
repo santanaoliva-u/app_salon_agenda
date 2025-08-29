@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import 'package:salon_app/provider/user_provider.dart';
 import 'package:salon_app/screens/introduction/splash_screen.dart';
+import 'package:salon_app/screens/settings/settings_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:salon_app/services/api_config_service.dart';
 import 'package:salon_app/l10n/app_localizations.dart';
@@ -47,7 +49,16 @@ Future<void> main() async {
       debugPrint('✅ Firebase inicializado correctamente');
     } catch (e) {
       debugPrint('❌ Error inicializando Firebase: $e');
-      debugPrint('🔄 Continuando sin Firebase - modo limitado');
+      // En Linux, Firebase puede no estar configurado, deshabilitarlo automáticamente
+      if (e.toString().contains('channel-error') ||
+          e.toString().contains('Linux')) {
+        debugPrint(
+            '🔧 Detectado Linux - Firebase no disponible en esta plataforma');
+        debugPrint('🔄 Deshabilitando Firebase automáticamente');
+        await apiConfigService.toggleFirebase(false);
+      } else {
+        debugPrint('� Continuando sin Firebase - modo limitado');
+      }
     }
   } else if (!kIsWeb && !apiConfigService.firebaseEnabled) {
     debugPrint('🔄 Firebase deshabilitado por configuración del usuario');
@@ -91,11 +102,18 @@ class MyApp extends StatelessWidget {
         locale: const Locale('es'), // Set Spanish as default locale
         localizationsDelegates: [
           const AppLocalizationsDelegate(),
+          // Agregar delegates de Flutter para soporte completo
+          DefaultMaterialLocalizations.delegate,
+          DefaultCupertinoLocalizations.delegate,
+          DefaultWidgetsLocalizations.delegate,
         ],
         supportedLocales: const [
           Locale('en', ''), // English
           Locale('es', ''), // Spanish
         ],
+        routes: {
+          '/settings': (context) => const SettingsScreen(),
+        },
         home: const SplashScreen(),
       ),
     );
