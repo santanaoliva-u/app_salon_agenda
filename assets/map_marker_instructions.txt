@@ -1,0 +1,10 @@
+Instrucciones para el marcador de mapa:
+
+1. Crear una imagen PNG de un marcador de mapa
+2. Nombrarla "map_marker.png"
+3. Colocarla en este directorio (assets/)
+4. La imagen debe ser de 50x50 píxeles aproximadamente
+5. Debe tener un fondo transparente
+6. El color principal debe ser #721c80 (púrpura)
+
+Esta imagen se utilizará como marcador personalizado en Google Maps.
