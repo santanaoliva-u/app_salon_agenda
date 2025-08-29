@@ -14,7 +14,15 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = Provider.of<UserProvider>(context, listen: false).getUser();
 
-    //print(user);
+    // Verificar que el usuario no sea null
+    if (user == null) {
+      return const Scaffold(
+        body: Center(
+          child: Text('Usuario no encontrado. Por favor, inicia sesión.'),
+        ),
+      );
+    }
+
     return Scaffold(
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 40),
@@ -41,7 +49,10 @@ class ProfileScreen extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 35,
-                    foregroundImage: NetworkImage(user!.photoURL.toString()),
+                    foregroundImage: user.photoURL != null
+                        ? NetworkImage(user.photoURL!)
+                        : null,
+                    child: const Icon(Icons.person, size: 35),
                   ),
                   const SizedBox(
                     width: 20,
