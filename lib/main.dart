@@ -88,7 +88,7 @@ class MyApp extends StatelessWidget {
             secondary: const Color(0xff721c80),
           ),
         ),
-        locale: const Locale('es'), // Set Spanish as default locale
+        locale: const Locale('en'), // Set English as default locale
         localizationsDelegates: [
           const AppLocalizationsDelegate(),
         ],
