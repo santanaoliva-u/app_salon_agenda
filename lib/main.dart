@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:salon_app/provider/user_provider.dart';
 import 'package:salon_app/screens/introduction/splash_screen.dart';
+import 'package:salon_app/screens/settings/settings_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:salon_app/services/api_config_service.dart';
 import 'package:salon_app/l10n/app_localizations.dart';
@@ -96,6 +97,9 @@ class MyApp extends StatelessWidget {
           Locale('en', ''), // English
           Locale('es', ''), // Spanish
         ],
+        routes: {
+          '/settings': (context) => const SettingsScreen(),
+        },
         home: const SplashScreen(),
       ),
     );
