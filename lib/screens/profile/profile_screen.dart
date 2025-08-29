@@ -14,7 +14,6 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = Provider.of<UserProvider>(context, listen: false).getUser();
 
-    //print(user);
     return Scaffold(
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 40),

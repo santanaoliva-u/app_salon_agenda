@@ -8,7 +8,6 @@ import 'package:salon_app/components/bottom_navigationbar.dart';
 import 'package:salon_app/provider/user_provider.dart';
 
 import '../../controller/auth_controller.dart';
-// lib/screens/introduction/onboarding_screen.dart
 
 class OnBoardingScreen extends StatefulWidget {
   const OnBoardingScreen({super.key});
