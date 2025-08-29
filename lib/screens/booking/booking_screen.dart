@@ -527,25 +527,3 @@ class ChipWrapper extends StatelessWidget {
     );
   }
 }
-
-// ElevatedButton(
-//     onPressed: () async {
-//       var snap = FirebaseFirestore.instance.collection('workers');
-//       List data = [];
-//       snap.doc('G9ZvAbTR9HvoiMChKrTA').get().then((value) {
-//         setState(() {
-//           print('snap');
-//           print(value["booked"]);
-//           data = value["booked"];
-//           print(data);
-//           data.add('value10');
-//         });
-//       }).then((value) => snap
-//           .doc('G9ZvAbTR9HvoiMChKrTA')
-//           .update({
-//             'booked': data,
-//           }) // <-- Updated data
-//           .then((_) => print('Success'))
-//           .catchError((error) => print('Failed: $error')));
-//     },
-//     child: Text("Book"))
