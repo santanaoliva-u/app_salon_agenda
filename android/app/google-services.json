@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "699399906513",
+    "project_id": "app-salon-id",
+    "storage_bucket": "app-salon-id.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:699399906513:android:97b9e755d75371d44e11f0",
+        "android_client_info": {
+          "package_name": "com.webboostmarketing.salonbelleza"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBohKhrl0IlnMh1EUZK_SuyTX3RbPelxsU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,33 @@
+// =============================================================
+// android/build.gradle - Project Level
+// =============================================================
+
+buildscript {
+    ext.kotlin_version = '1.9.25'
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath "com.android.tools.build:gradle:8.3.2"
+        classpath "com.google.gms:google-services:4.4.3"
+    }
+}
+
+// This file is intentionally left mostly empty for Flutter projects
+// All configuration is handled in settings.gradle and app/build.gradle
+
+// Apply configurations to all projects
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+// Apply configurations to root project only
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}
+
