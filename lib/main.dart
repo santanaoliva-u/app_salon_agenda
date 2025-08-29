@@ -19,8 +19,7 @@ Future<void> main() async {
   // DIAGNÓSTICO: Agregar logs detallados de inicialización
   debugPrint('🚀 INICIANDO APLICACIÓN SALON BOOKING');
   debugPrint('📱 Plataforma: ${kIsWeb ? "Web" : "Móvil"}');
-  debugPrint(
-      '🔧 Flutter version: ${WidgetsBinding.instance.platformDispatcher.locale}');
+  debugPrint('🔧 Locale: ${WidgetsBinding.instance.platformDispatcher.locale}');
 
   // Load environment variables
   try {
