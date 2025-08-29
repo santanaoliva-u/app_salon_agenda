@@ -60,13 +60,13 @@ class ProfileScreen extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(user.displayName.toString(),
+                      Text(user.displayName ?? 'Sin nombre',
                           style: const TextStyle(
                             fontSize: 24,
                             color: Colors.black,
                             fontWeight: FontWeight.bold,
                           )),
-                      Text(user.email.toString(),
+                      Text(user.email ?? 'Sin email',
                           style: TextStyle(
                             color: Colors.grey.withAlpha((0.8 * 255).toInt()),
                             fontWeight: FontWeight.bold,
