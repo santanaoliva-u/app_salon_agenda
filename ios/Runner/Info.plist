@@ -51,7 +51,7 @@
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Esta aplicación necesita acceso a la ubicación para mostrar mapas.</string>
 	
-	<!-- API Key de Google Maps -->
+	<!-- API Key de Google Maps - CONFIGURAR CON TU API KEY REAL -->
 	<key>GMSApiKey</key>
 	<string>TU_API_KEY_AQUI</string>
 </dict>
