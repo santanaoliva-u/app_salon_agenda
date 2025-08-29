@@ -7,23 +7,35 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:salon_app/services/api_config_service.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'package:salon_app/main.dart';
+import 'package:salon_app/services/api_config_service.dart';
 
 void main() {
-  testWidgets('App starts correctly', (WidgetTester tester) async {
-    // Create a mock ApiConfigService for testing
+  setUpAll(() async {
+    // Load environment variables for testing
+    await dotenv.load(fileName: ".env");
+  });
+
+  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+    // Create API config service for testing
     final apiConfigService = ApiConfigService();
+    await apiConfigService.initialize();
 
     // Build our app and trigger a frame.
     await tester.pumpWidget(MyApp(apiConfigService: apiConfigService));
 
-    // Verify that our app starts without crashing
-    expect(find.byType(MaterialApp), findsOneWidget);
+    // Verify that our counter starts at 0.
+    expect(find.text('0'), findsOneWidget);
+    expect(find.text('1'), findsNothing);
 
-    // Verify that we have a splash screen or main content
-    // This is a basic smoke test to ensure the app doesn't crash on startup
-    await tester.pumpAndSettle();
+    // Tap the '+' icon and trigger a frame.
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pump();
+
+    // Verify that our counter has incremented.
+    expect(find.text('0'), findsNothing);
+    expect(find.text('1'), findsOneWidget);
   });
 }

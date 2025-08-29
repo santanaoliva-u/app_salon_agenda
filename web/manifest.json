@@ -1,6 +1,6 @@
 {
-    "name": "salon_app_new",
-    "short_name": "salon_app_new",
+    "name": "salon_app",
+    "short_name": "salon_app",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
