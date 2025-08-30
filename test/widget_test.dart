@@ -10,21 +10,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'package:salon_app/main.dart';
-import 'package:salon_app/services/api_config_service.dart';
+import 'package:salon_app/services/config_service.dart';
 
 void main() {
   setUpAll(() async {
     // Load environment variables for testing
     await dotenv.load(fileName: ".env");
+
+    // Initialize configuration service for testing
+    await configService.initialize();
   });
 
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Create API config service for testing
-    final apiConfigService = ApiConfigService();
-    await apiConfigService.initialize();
-
+  testWidgets('App initialization smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(MyApp(apiConfigService: apiConfigService));
+    await tester.pumpWidget(const MyApp());
 
     // Verify that our counter starts at 0.
     expect(find.text('0'), findsOneWidget);

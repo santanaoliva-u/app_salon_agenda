@@ -2,7 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:salon_app/components/date_picker.dart';
-import 'package:salon_app/services/api_config_service.dart';
+import 'package:salon_app/services/config_service.dart';
+import 'package:salon_app/services/booking_service.dart';
 
 class BookingScreen extends StatefulWidget {
   const BookingScreen({super.key});
@@ -12,7 +13,35 @@ class BookingScreen extends StatefulWidget {
 }
 
 class _BookingScreenState extends State<BookingScreen> {
+  /// Index of the currently selected service in the list
   int selectedIndex = 0;
+
+  /// Global key for form validation
+  final _formKey = GlobalKey<FormState>();
+
+  // Form controllers
+  final _customerNameController = TextEditingController();
+  final _customerPhoneController = TextEditingController();
+  final _customerEmailController = TextEditingController();
+  final _notesController = TextEditingController();
+
+  // Selected service data
+  String? _selectedServiceId;
+  String? _selectedServiceName;
+  String? _selectedWorkerId;
+  String? _selectedWorkerName;
+  DateTime? _selectedDateTime;
+
+  bool _isBooking = false;
+
+  @override
+  void dispose() {
+    _customerNameController.dispose();
+    _customerPhoneController.dispose();
+    _customerEmailController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
 
   void onClick(int index) {
     setState(() {
@@ -20,6 +49,23 @@ class _BookingScreenState extends State<BookingScreen> {
     });
   }
 
+  void _onServiceSelected(String serviceId, String serviceName) {
+    setState(() {
+      _selectedServiceId = serviceId;
+      _selectedServiceName = serviceName;
+    });
+  }
+
+  void _onDateTimeSelected(DateTime dateTime) {
+    setState(() {
+      _selectedDateTime = dateTime;
+    });
+  }
+
+  /// Builds a widget to display when Firebase is not available
+  ///
+  /// This widget shows an offline indicator with appropriate messaging
+  /// and visual cues to inform the user about the connectivity status.
   Widget _buildOfflineServicesList() {
     return Container(
       height: 120,
@@ -58,6 +104,10 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
+  /// Builds a widget to display when there's an error loading services
+  ///
+  /// Shows an error message with the specific error details and
+  /// provides visual feedback about the problem.
   Widget _buildErrorServicesList(String error) {
     return Container(
       height: 120,
@@ -97,6 +147,10 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
+  /// Builds a loading widget with skeleton placeholders
+  ///
+  /// Shows animated placeholders that match the structure of the actual
+  /// service list to provide better user experience during loading.
   Widget _buildLoadingServicesList() {
     return SizedBox(
       height: 120,
@@ -124,6 +178,10 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
+  /// Builds a widget to display when no services are available
+  ///
+  /// Shows an appropriate message and icon when the services collection
+  /// is empty or when no services match the current filters.
   Widget _buildEmptyServicesList() {
     return Container(
       height: 120,
@@ -155,68 +213,147 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
+  /// Handles the booking process with comprehensive validation and error handling
+  ///
+  /// This method performs the following steps:
+  /// 1. Validates the form data (name, phone, email)
+  /// 2. Checks that required selections are made (service, worker, time)
+  /// 3. Validates booking data using the booking service
+  /// 4. Checks slot availability to prevent double bookings
+  /// 5. Creates the booking in Firestore
+  /// 6. Shows appropriate success/error messages
+  /// 7. Resets the form on successful booking
+  ///
+  /// Error handling includes:
+  /// - Form validation errors
+  /// - Missing selections
+  /// - Slot availability conflicts
+  /// - Network/API errors
+  /// - Authentication issues
   Future<void> _handleBooking(BuildContext context) async {
+    // Step 1: Validate form data
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    // Validate required selections
+    if (_selectedServiceId == null ||
+        _selectedWorkerId == null ||
+        _selectedDateTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor selecciona servicio, trabajador y horario'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isBooking = true;
+    });
+
     try {
-      if (!mounted) return;
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Procesando reserva...'),
-          duration: Duration(seconds: 1),
-        ),
+      // Validate booking data
+      final validationError = bookingService.validateBookingData(
+        serviceId: _selectedServiceId!,
+        workerId: _selectedWorkerId!,
+        dateTime: _selectedDateTime!,
+        customerName: _customerNameController.text.trim(),
+        customerPhone: _customerPhoneController.text.trim(),
       );
 
-      // Simulate booking process
-      await Future.delayed(const Duration(seconds: 2));
+      if (validationError != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(validationError),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
 
-      if (!mounted) return;
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('¡Reserva realizada con éxito!'),
-          backgroundColor: Colors.green,
-        ),
+      // Check slot availability
+      final isAvailable = await bookingService.isSlotAvailable(
+        _selectedWorkerId!,
+        _selectedDateTime!,
       );
+
+      if (!context.mounted) return;
+
+      if (!isAvailable) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Este horario ya no está disponible'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Create booking
+      final success = await bookingService.createBooking(
+        serviceId: _selectedServiceId!,
+        serviceName: _selectedServiceName!,
+        workerId: _selectedWorkerId!,
+        workerName: _selectedWorkerName!,
+        dateTime: _selectedDateTime!,
+        customerName: _customerNameController.text.trim(),
+        customerPhone: _customerPhoneController.text.trim(),
+        customerEmail: _customerEmailController.text.trim().isNotEmpty
+            ? _customerEmailController.text.trim()
+            : null,
+        notes: _notesController.text.trim().isNotEmpty
+            ? _notesController.text.trim()
+            : null,
+      );
+
+      if (!context.mounted) return;
+
+      if (success) {
+        // Clear form
+        _formKey.currentState!.reset();
+        _customerNameController.clear();
+        _customerPhoneController.clear();
+        _customerEmailController.clear();
+        _notesController.clear();
+        setState(() {
+          _selectedServiceId = null;
+          _selectedServiceName = null;
+          _selectedWorkerId = null;
+          _selectedWorkerName = null;
+          _selectedDateTime = null;
+          selectedIndex = 0;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('¡Reserva realizada con éxito!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error al crear la reserva. Inténtalo de nuevo.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } catch (e) {
-      if (!mounted) return;
-      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error al procesar la reserva: $e'),
+          content: Text('Error: $e'),
           backgroundColor: Colors.red,
         ),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isBooking = false;
+        });
+      }
     }
-  }
-
-  void _showOfflineBookingDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Modo Sin Conexión'),
-        content: const Text(
-          'La funcionalidad de reservas requiere conexión a Firebase. '
-          'Por favor, habilite Firebase en la configuración o conecte a internet.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cerrar'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              // Navigate to settings
-              Navigator.of(context).pushNamed('/settings');
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xff721c80),
-            ),
-            child: const Text('Configuración'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -242,11 +379,11 @@ class _BookingScreenState extends State<BookingScreen> {
                     bottomLeft: Radius.circular(30),
                     bottomRight: Radius.circular(30)),
               ),
-              child: const Padding(
-                padding: EdgeInsets.only(top: 38, left: 18, right: 18),
+              child: Padding(
+                padding: const EdgeInsets.only(top: 38, left: 18, right: 18),
                 child: Column(
                   children: [
-                    Row(
+                    const Row(
                       children: [
                         Spacer(),
                         Text(
@@ -260,7 +397,14 @@ class _BookingScreenState extends State<BookingScreen> {
                         Spacer(),
                       ],
                     ),
-                    CustomDatePicker(),
+                    CustomDatePicker(
+                      onDateSelected: (date) {
+                        // For now, just select the date at 9 AM as default
+                        final dateTime =
+                            DateTime(date.year, date.month, date.day, 9, 0);
+                        _onDateTimeSelected(dateTime);
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -330,9 +474,9 @@ class _BookingScreenState extends State<BookingScreen> {
                   const SizedBox(
                     height: 20,
                   ),
-                  Consumer<ApiConfigService>(
-                    builder: (context, apiConfig, child) {
-                      if (!apiConfig.firebaseEnabled) {
+                  Consumer<ConfigService>(
+                    builder: (context, config, child) {
+                      if (!config.firebaseEnabled) {
                         return _buildOfflineServicesList();
                       }
 
@@ -365,7 +509,11 @@ class _BookingScreenState extends State<BookingScreen> {
                               itemBuilder: (BuildContext context, int index) {
                                 final doc = snapshot.data!.docs[index];
                                 return GestureDetector(
-                                  onTap: () => onClick(index),
+                                  onTap: () {
+                                    onClick(index);
+                                    _onServiceSelected(
+                                        doc.id, doc["name"] ?? "Servicio");
+                                  },
                                   child: AnimatedContainer(
                                     duration: const Duration(milliseconds: 200),
                                     curve: Curves.elasticIn,
@@ -442,42 +590,162 @@ class _BookingScreenState extends State<BookingScreen> {
                 ],
               ),
             ),
-            Consumer<ApiConfigService>(
-              builder: (context, apiConfig, child) {
+
+            // Customer Information Form
+            /// Formulario para recopilar información del cliente
+            ///
+            /// Incluye validación completa para:
+            /// - Nombre: requerido, mínimo 2 caracteres
+            /// - Teléfono: requerido, formato válido
+            /// - Email: opcional, formato válido si se proporciona
+            /// - Notas: opcional, sin validación específica
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Información del Cliente",
+                      style: TextStyle(
+                        color: Color.fromARGB(255, 45, 42, 42),
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Customer Name - Campo requerido con validación básica
+                    TextFormField(
+                      controller: _customerNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Nombre completo *',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.person),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'El nombre es requerido';
+                        }
+                        if (value.trim().length < 2) {
+                          return 'El nombre debe tener al menos 2 caracteres';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Customer Phone - Campo requerido con validación de formato
+                    TextFormField(
+                      controller: _customerPhoneController,
+                      decoration: const InputDecoration(
+                        labelText: 'Teléfono *',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.phone),
+                        hintText: '+1234567890',
+                      ),
+                      keyboardType: TextInputType.phone,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'El teléfono es requerido';
+                        }
+                        if (!RegExp(r'^\+?[\d\s\-\(\)]+$').hasMatch(value)) {
+                          return 'Formato de teléfono inválido';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Customer Email - Campo opcional con validación de formato
+                    TextFormField(
+                      controller: _customerEmailController,
+                      decoration: const InputDecoration(
+                        labelText: 'Email (opcional)',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.email),
+                        hintText: 'cliente@email.com',
+                      ),
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (value) {
+                        if (value != null && value.isNotEmpty) {
+                          if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                              .hasMatch(value)) {
+                            return 'Formato de email inválido';
+                          }
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Notes - Campo opcional sin validación específica
+                    TextFormField(
+                      controller: _notesController,
+                      decoration: const InputDecoration(
+                        labelText: 'Notas adicionales (opcional)',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.note),
+                        hintText: 'Alergias, preferencias especiales...',
+                      ),
+                      maxLines: 3,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            Consumer<ConfigService>(
+              builder: (context, config, child) {
                 return GestureDetector(
-                  onTap: apiConfig.firebaseEnabled
-                      ? () => _handleBooking(context)
-                      : () => _showOfflineBookingDialog(context),
+                  onTap: _isBooking || !config.firebaseEnabled
+                      ? null
+                      : () => _handleBooking(context),
                   child: Container(
-                    margin: const EdgeInsets.only(left: 18, right: 18),
+                    margin:
+                        const EdgeInsets.only(left: 18, right: 18, bottom: 20),
                     height: 50,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(20),
-                      color: apiConfig.firebaseEnabled
-                          ? const Color(0xff721c80)
-                          : Colors.grey,
-                      gradient: apiConfig.firebaseEnabled
-                          ? const LinearGradient(
+                      color: _isBooking
+                          ? Colors.grey
+                          : config.firebaseEnabled
+                              ? const Color(0xff721c80)
+                              : Colors.grey,
+                      gradient: _isBooking || !config.firebaseEnabled
+                          ? null
+                          : const LinearGradient(
                               colors: [
                                 Color(0xff721c80),
                                 Color.fromARGB(255, 196, 103, 169),
                               ],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
-                            )
-                          : null,
+                            ),
                     ),
                     child: Center(
-                        child: Text(
-                      apiConfig.firebaseEnabled
-                          ? "Reservar cita"
-                          : "Modo sin conexión",
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          letterSpacing: 1.1,
-                          fontWeight: FontWeight.bold),
-                    )),
+                      child: _isBooking
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : Text(
+                              config.firebaseEnabled
+                                  ? "Reservar cita"
+                                  : "Modo sin conexión",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                letterSpacing: 1.1,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
                   ),
                 );
               },

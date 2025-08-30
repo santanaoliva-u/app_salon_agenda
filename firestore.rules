@@ -1,0 +1,109 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Servicios: lectura pública, escritura solo admin
+    match /services/{serviceId} {
+      allow read: if true;
+      allow write: if request.auth != null &&
+        request.auth.token.admin == true;
+      allow create: if request.auth != null &&
+        request.auth.token.admin == true &&
+        isValidServiceData(request.resource.data);
+    }
+
+    // Trabajadores: lectura pública, escritura solo admin
+    match /workers/{workerId} {
+      allow read: if true;
+      allow write: if request.auth != null &&
+        request.auth.token.admin == true;
+      allow create: if request.auth != null &&
+        request.auth.token.admin == true &&
+        isValidWorkerData(request.resource.data);
+    }
+
+    // Reservas: lectura/escritura solo del propietario o admin
+    match /bookings/{bookingId} {
+      allow read: if request.auth != null &&
+        (request.auth.uid == resource.data.customerId ||
+         request.auth.token.admin == true);
+      allow write: if request.auth != null &&
+        (request.auth.uid == resource.data.customerId ||
+         request.auth.token.admin == true) &&
+        isValidBookingUpdate(request.resource.data, resource.data);
+      allow create: if request.auth != null &&
+        request.auth.uid == request.resource.data.customerId &&
+        isValidBookingData(request.resource.data);
+    }
+
+    // Configuraciones: lectura pública, escritura solo admin
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if request.auth != null &&
+        request.auth.token.admin == true;
+    }
+  }
+}
+
+// Funciones de validación
+function isValidServiceData(data) {
+  return data.keys().hasAll(['name', 'price', 'duration']) &&
+         data.name is string &&
+         data.name.size() >= 2 &&
+         data.name.size() <= 50 &&
+         data.price is number &&
+         data.price > 0 &&
+         data.duration is number &&
+         data.duration >= 15 &&
+         data.duration <= 480;
+}
+
+function isValidWorkerData(data) {
+  return data.keys().hasAll(['name']) &&
+         data.name is string &&
+         data.name.size() >= 2 &&
+         data.name.size() <= 100 &&
+         (!data.keys().hasAny(['email']) || !exists(data.email) || isValidEmail(data.email)) &&
+         (!data.keys().hasAny(['rating']) || !exists(data.rating) || isValidRating(data.rating));
+}
+
+function isValidBookingData(data) {
+  return data.keys().hasAll(['serviceId', 'workerId', 'customerId', 'customerName', 'customerPhone', 'dateTime', 'status']) &&
+         data.serviceId is string &&
+         data.workerId is string &&
+         data.customerId is string &&
+         data.customerName is string &&
+         data.customerName.size() >= 2 &&
+         data.customerPhone is string &&
+         isValidPhone(data.customerPhone) &&
+         data.dateTime is timestamp &&
+         isFutureDate(data.dateTime) &&
+         isValidBookingStatus(data.status) &&
+         (!data.keys().hasAny(['customerEmail']) || !exists(data.customerEmail) || isValidEmail(data.customerEmail));
+}
+
+function isValidBookingUpdate(newData, oldData) {
+  return (!newData.keys().hasAny(['status']) || !exists(newData.status) || isValidBookingStatus(newData.status)) &&
+         (!newData.keys().hasAny(['customerId']) || newData.customerId == oldData.customerId) &&
+         (!newData.keys().hasAny(['dateTime']) || isFutureDate(newData.dateTime));
+}
+
+function isValidEmail(email) {
+  return email.matches('[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}');
+}
+
+function isValidPhone(phone) {
+  return phone.matches('^[+]?[0-9\\s\\-\\(\\)]+$');
+}
+
+function isValidRating(rating) {
+  return rating is number && rating >= 0 && rating <= 5;
+}
+
+function isFutureDate(dateTime) {
+  return dateTime > request.time;
+}
+
+function isValidBookingStatus(status) {
+  return status in ['confirmed', 'completed', 'cancelled'];
+}

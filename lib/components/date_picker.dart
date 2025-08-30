@@ -2,8 +2,11 @@ import 'package:date_picker_timeline/date_picker_widget.dart';
 import 'package:flutter/material.dart';
 
 class CustomDatePicker extends StatefulWidget {
+  final Function(DateTime)? onDateSelected;
+
   const CustomDatePicker({
     super.key,
+    this.onDateSelected,
   });
 
   @override
@@ -12,6 +15,7 @@ class CustomDatePicker extends StatefulWidget {
 
 class _CustomDatePickerState extends State<CustomDatePicker> {
   DateTime newdate = DateTime.now();
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -56,9 +60,12 @@ class _CustomDatePickerState extends State<CustomDatePicker> {
             selectedTextColor: const Color(0xff721c80),
             onDateChange: (date) {
               setState(() {
-                /// String updateDate = date.toString();
                 newdate = date;
               });
+              // Call parent callback if provided
+              if (widget.onDateSelected != null) {
+                widget.onDateSelected!(date);
+              }
             },
           ),
         ),
