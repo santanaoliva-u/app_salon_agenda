@@ -1,3 +1,17 @@
+buildscript {
+    val kotlinVersion = "1.9.25"
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+    dependencies {
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
+        classpath("com.android.tools.build:gradle:8.9.1")
+        classpath("com.google.gms:google-services:4.4.3")
+    }
+}
+
 allprojects {
     repositories {
         google()
