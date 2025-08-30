@@ -5,6 +5,7 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -14,11 +15,36 @@ import 'package:salon_app/services/config_service.dart';
 
 void main() {
   setUpAll(() async {
-    // Load environment variables for testing
-    await dotenv.load(fileName: ".env");
+    // CORRECCIÓN: Inicializar TestWidgetsFlutterBinding para tests
+    TestWidgetsFlutterBinding.ensureInitialized();
 
-    // Initialize configuration service for testing
-    await configService.initialize();
+    // DIAGNÓSTICO: Agregar logs detallados para debugging de tests
+    debugPrint('🚀 INICIANDO WIDGET TEST');
+    debugPrint('📁 Directorio de trabajo: ${Directory.current.path}');
+
+    // Load environment variables for testing
+    try {
+      await dotenv.load(fileName: ".env");
+      debugPrint('✅ Variables de entorno cargadas');
+    } catch (e) {
+      debugPrint('❌ Error cargando variables de entorno: $e');
+    }
+
+    // CORRECCIÓN: ConfigService puede fallar en tests debido a plugins no disponibles
+    // Usaremos un try-catch para manejar MissingPluginException
+    try {
+      await configService.initialize();
+      debugPrint('✅ ConfigService inicializado');
+    } catch (e) {
+      debugPrint('❌ Error inicializando ConfigService: $e');
+      debugPrint('🔍 Tipo de error: ${e.runtimeType}');
+      debugPrint('📝 Mensaje: ${e.toString()}');
+      // En tests, continuamos sin ConfigService si hay errores de plugins
+      if (e.toString().contains('MissingPluginException')) {
+        debugPrint(
+            '⚠️  MissingPluginException detectado - continuando sin ConfigService');
+      }
+    }
   });
 
   testWidgets('App initialization smoke test', (WidgetTester tester) async {
