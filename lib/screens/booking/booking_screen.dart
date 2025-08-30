@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:salon_app/components/date_picker.dart';
 import 'package:salon_app/services/config_service.dart';
 import 'package:salon_app/services/booking_service.dart';
+import 'package:salon_app/services/validation_service.dart';
+import 'package:salon_app/services/ui_state_service.dart';
 
 class BookingScreen extends StatefulWidget {
   const BookingScreen({super.key});
@@ -67,40 +69,12 @@ class _BookingScreenState extends State<BookingScreen> {
   /// This widget shows an offline indicator with appropriate messaging
   /// and visual cues to inform the user about the connectivity status.
   Widget _buildOfflineServicesList() {
-    return Container(
-      height: 120,
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[300]!),
-      ),
-      child: const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.wifi_off,
-              size: 32,
-              color: Colors.grey,
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Firebase no disponible',
-              style: TextStyle(
-                color: Colors.grey,
-                fontSize: 14,
-              ),
-            ),
-            Text(
-              'Modo sin conexión',
-              style: TextStyle(
-                color: Colors.grey,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return UiStateService.buildEmptyState(
+      title: 'Modo Sin Conexión',
+      message:
+          'Firebase no está disponible. Algunas funciones están limitadas.',
+      icon: Icons.wifi_off,
+      iconColor: Colors.grey,
     );
   }
 
@@ -109,41 +83,11 @@ class _BookingScreenState extends State<BookingScreen> {
   /// Shows an error message with the specific error details and
   /// provides visual feedback about the problem.
   Widget _buildErrorServicesList(String error) {
-    return Container(
-      height: 120,
-      decoration: BoxDecoration(
-        color: Colors.red[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red[200]!),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.error_outline,
-              size: 32,
-              color: Colors.red,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Error al cargar servicios',
-              style: TextStyle(
-                color: Colors.red,
-                fontSize: 14,
-              ),
-            ),
-            Text(
-              error,
-              style: const TextStyle(
-                color: Colors.red,
-                fontSize: 12,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
+    return UiStateService.buildErrorWidget(
+      title: 'Error al cargar servicios',
+      message: error,
+      icon: Icons.error_outline,
+      backgroundColor: Colors.red[50],
     );
   }
 
@@ -152,29 +96,9 @@ class _BookingScreenState extends State<BookingScreen> {
   /// Shows animated placeholders that match the structure of the actual
   /// service list to provide better user experience during loading.
   Widget _buildLoadingServicesList() {
-    return SizedBox(
-      height: 120,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: 5,
-        itemBuilder: (context, index) {
-          return Container(
-            margin: const EdgeInsets.only(right: 12.0),
-            height: 80,
-            width: 80,
-            decoration: BoxDecoration(
-              color: Colors.grey[200],
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Center(
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xff721c80)),
-              ),
-            ),
-          );
-        },
-      ),
+    return UiStateService.buildLoadingIndicator(
+      message: 'Cargando servicios...',
+      size: 60,
     );
   }
 
@@ -183,33 +107,11 @@ class _BookingScreenState extends State<BookingScreen> {
   /// Shows an appropriate message and icon when the services collection
   /// is empty or when no services match the current filters.
   Widget _buildEmptyServicesList() {
-    return Container(
-      height: 120,
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[300]!),
-      ),
-      child: const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.inventory_2_outlined,
-              size: 32,
-              color: Colors.grey,
-            ),
-            SizedBox(height: 8),
-            Text(
-              'No hay servicios disponibles',
-              style: TextStyle(
-                color: Colors.grey,
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return UiStateService.buildEmptyState(
+      title: 'No hay servicios disponibles',
+      message: 'Los servicios estarán disponibles próximamente.',
+      icon: Icons.inventory_2_outlined,
+      iconColor: Colors.grey,
     );
   }
 
@@ -254,22 +156,31 @@ class _BookingScreenState extends State<BookingScreen> {
     });
 
     try {
-      // Validate booking data
-      final validationError = bookingService.validateBookingData(
+      // Validate booking data using ValidationService
+      final validationErrors = ValidationService.validateBookingData(
         serviceId: _selectedServiceId!,
         workerId: _selectedWorkerId!,
         dateTime: _selectedDateTime!,
         customerName: _customerNameController.text.trim(),
         customerPhone: _customerPhoneController.text.trim(),
+        customerEmail: _customerEmailController.text.trim().isNotEmpty
+            ? _customerEmailController.text.trim()
+            : null,
+        notes: _notesController.text.trim().isNotEmpty
+            ? _notesController.text.trim()
+            : null,
       );
 
-      if (validationError != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(validationError),
+      // Check if there are any validation errors
+      if (ValidationService.hasErrors(validationErrors)) {
+        final firstError = ValidationService.getFirstError(validationErrors);
+        if (mounted) {
+          UiStateService.showSnackBar(
+            context: context,
+            message: firstError ?? 'Error de validación',
             backgroundColor: Colors.red,
-          ),
-        );
+          );
+        }
         return;
       }
 
@@ -282,12 +193,13 @@ class _BookingScreenState extends State<BookingScreen> {
       if (!context.mounted) return;
 
       if (!isAvailable) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Este horario ya no está disponible'),
+        if (mounted) {
+          UiStateService.showSnackBar(
+            context: context,
+            message: 'Este horario ya no está disponible',
             backgroundColor: Colors.red,
-          ),
-        );
+          );
+        }
         return;
       }
 
@@ -326,12 +238,13 @@ class _BookingScreenState extends State<BookingScreen> {
           selectedIndex = 0;
         });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('¡Reserva realizada con éxito!'),
+        if (mounted) {
+          UiStateService.showSnackBar(
+            context: context,
+            message: '¡Reserva realizada con éxito!',
             backgroundColor: Colors.green,
-          ),
-        );
+          );
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -616,49 +529,51 @@ class _BookingScreenState extends State<BookingScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Customer Name - Campo requerido con validación básica
+                    // Customer Name - Campo requerido con validación avanzada
                     TextFormField(
                       controller: _customerNameController,
                       decoration: const InputDecoration(
                         labelText: 'Nombre completo *',
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.person),
+                        hintText: 'Ej: María González',
                       ),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'El nombre es requerido';
-                        }
-                        if (value.trim().length < 2) {
-                          return 'El nombre debe tener al menos 2 caracteres';
-                        }
-                        return null;
-                      },
+                      textCapitalization: TextCapitalization.words,
+                      validator: (value) =>
+                          ValidationService.validateName(value),
                     ),
                     const SizedBox(height: 16),
 
-                    // Customer Phone - Campo requerido con validación de formato
+                    // Customer Phone - Campo requerido con validación avanzada
                     TextFormField(
                       controller: _customerPhoneController,
                       decoration: const InputDecoration(
                         labelText: 'Teléfono *',
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.phone),
-                        hintText: '+1234567890',
+                        hintText: '+52 55 1234 5678 o (55) 1234 5678',
                       ),
                       keyboardType: TextInputType.phone,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'El teléfono es requerido';
+                      validator: (value) =>
+                          ValidationService.validatePhone(value),
+                      onChanged: (value) {
+                        // Auto-format phone number as user types
+                        if (value.isNotEmpty) {
+                          final formatted =
+                              ValidationService.formatPhoneNumber(value);
+                          if (formatted != value) {
+                            _customerPhoneController.value = TextEditingValue(
+                              text: formatted,
+                              selection: TextSelection.collapsed(
+                                  offset: formatted.length),
+                            );
+                          }
                         }
-                        if (!RegExp(r'^\+?[\d\s\-\(\)]+$').hasMatch(value)) {
-                          return 'Formato de teléfono inválido';
-                        }
-                        return null;
                       },
                     ),
                     const SizedBox(height: 16),
 
-                    // Customer Email - Campo opcional con validación de formato
+                    // Customer Email - Campo opcional con validación avanzada
                     TextFormField(
                       controller: _customerEmailController,
                       decoration: const InputDecoration(
@@ -668,28 +583,28 @@ class _BookingScreenState extends State<BookingScreen> {
                         hintText: 'cliente@email.com',
                       ),
                       keyboardType: TextInputType.emailAddress,
-                      validator: (value) {
-                        if (value != null && value.isNotEmpty) {
-                          if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                              .hasMatch(value)) {
-                            return 'Formato de email inválido';
-                          }
-                        }
-                        return null;
-                      },
+                      validator: (value) => ValidationService.validateEmail(
+                          value,
+                          required: false),
                     ),
                     const SizedBox(height: 16),
 
-                    // Notes - Campo opcional sin validación específica
+                    // Notes - Campo opcional con validación de longitud
                     TextFormField(
                       controller: _notesController,
                       decoration: const InputDecoration(
                         labelText: 'Notas adicionales (opcional)',
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.note),
-                        hintText: 'Alergias, preferencias especiales...',
+                        hintText:
+                            'Alergias, preferencias especiales, solicitudes específicas...',
                       ),
                       maxLines: 3,
+                      validator: (value) =>
+                          ValidationService.validateTextLength(value,
+                              required: false,
+                              maxLength: 500,
+                              fieldName: 'notas'),
                     ),
                   ],
                 ),
