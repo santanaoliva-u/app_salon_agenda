@@ -5,8 +5,10 @@ import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:provider/provider.dart';
 import 'package:salon_app/services/config_service.dart';
 import 'package:salon_app/services/map_service.dart';
+import 'package:salon_app/services/permissions_service.dart';
 import 'package:salon_app/widgets/backup_map_widget.dart';
 import 'package:logger/logger.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class MapsPage extends StatefulWidget {
   const MapsPage({super.key});
@@ -30,6 +32,10 @@ class _MapsPageState extends State<MapsPage> {
 
   late BitmapDescriptor customIcon;
 
+  // Permission states
+  bool _locationPermissionGranted = false;
+  bool _isRequestingPermission = false;
+
   @override
   void initState() {
     super.initState();
@@ -38,6 +44,9 @@ class _MapsPageState extends State<MapsPage> {
 
   void _initializeMap() async {
     try {
+      // Request location permission first
+      await _requestLocationPermission();
+
       // Load dynamic salon location from Firestore
       final salonLocation = await mapService.getSalonLocation();
       if (salonLocation != null) {
@@ -56,6 +65,78 @@ class _MapsPageState extends State<MapsPage> {
       _logger.e('Error initializing map: $e');
       // Fallback: add markers without custom icon
       _addMarkers();
+    }
+  }
+
+  Future<void> _requestLocationPermission() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isRequestingPermission = true;
+    });
+
+    try {
+      final status = await PermissionsService.requestLocationWithRationale(
+        context: context,
+        rationaleTitle: '¿Por qué necesitamos tu ubicación?',
+        rationaleMessage: 'Tu ubicación nos ayuda a:\n\n'
+            '• Mostrar tu posición en el mapa\n'
+            '• Calcular rutas óptimas al salón\n'
+            '• Encontrar servicios cercanos\n'
+            '• Mejorar tu experiencia de navegación',
+      );
+
+      setState(() {
+        _locationPermissionGranted = status.isGranted;
+      });
+
+      if (status.isGranted) {
+        _logger.i('Location permission granted successfully');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Permiso de ubicación concedido'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      } else if (status.isPermanentlyDenied) {
+        _logger.w('Location permission permanently denied');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  'Permiso de ubicación denegado permanentemente. Habilítalo en configuración.'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+      } else {
+        _logger.w('Location permission denied');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  'Permiso de ubicación denegado. Algunas funciones estarán limitadas.'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      _logger.e('Error requesting location permission: $e');
+      setState(() {
+        _locationPermissionGranted = false;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRequestingPermission = false;
+        });
+      }
     }
   }
 
@@ -150,6 +231,21 @@ class _MapsPageState extends State<MapsPage> {
                   onPressed: () => _showApiKeyDialog(context),
                   tooltip: 'Configurar API Key',
                 ),
+              if (!_locationPermissionGranted && !_isRequestingPermission)
+                IconButton(
+                  icon: const Icon(Icons.location_on),
+                  onPressed: _requestLocationPermission,
+                  tooltip: 'Solicitar permiso de ubicación',
+                ),
+              if (_isRequestingPermission)
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
             ],
           ),
           body: hasValidApiKey
@@ -161,8 +257,8 @@ class _MapsPageState extends State<MapsPage> {
                   },
                   markers: _markers,
                   polylines: _polylines,
-                  myLocationButtonEnabled: true,
-                  myLocationEnabled: true,
+                  myLocationButtonEnabled: _locationPermissionGranted,
+                  myLocationEnabled: _locationPermissionGranted,
                   zoomControlsEnabled: true,
                   compassEnabled: true,
                   mapToolbarEnabled: true,
@@ -211,6 +307,76 @@ class _MapsPageState extends State<MapsPage> {
             backgroundColor: Colors.green[50],
           ),
           const SizedBox(height: 20),
+          // Permission status card
+          Card(
+            elevation: 4,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        _locationPermissionGranted
+                            ? Icons.location_on
+                            : Icons.location_off,
+                        color: _locationPermissionGranted
+                            ? Colors.green
+                            : Colors.red,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _locationPermissionGranted
+                            ? 'Permiso de Ubicación Concedido'
+                            : 'Permiso de Ubicación Requerido',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: _locationPermissionGranted
+                              ? Colors.green
+                              : Colors.red,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _locationPermissionGranted
+                        ? 'Tu ubicación está disponible para mejorar la experiencia del mapa.'
+                        : 'Concede el permiso de ubicación para ver tu posición en el mapa y calcular rutas.',
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  if (!_locationPermissionGranted && !_isRequestingPermission)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: ElevatedButton.icon(
+                        onPressed: _requestLocationPermission,
+                        icon: const Icon(Icons.location_on),
+                        label: const Text('Solicitar Permiso'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xff721c80),
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ),
+                  if (_isRequestingPermission)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 16),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Color(0xff721c80)),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // API Key configuration card
           Card(
             elevation: 4,
             child: Padding(
@@ -219,7 +385,7 @@ class _MapsPageState extends State<MapsPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Modo Limitado',
+                    'Configuración de Google Maps',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -229,7 +395,7 @@ class _MapsPageState extends State<MapsPage> {
                   const SizedBox(height: 8),
                   const Text(
                     'La funcionalidad completa del mapa requiere una clave de API de Google Maps válida. '
-                    'Configure su clave de API en la configuración para acceder a todas las funciones.',
+                    'Configure su clave de API para acceder a todas las funciones.',
                     style: TextStyle(color: Colors.grey),
                   ),
                   const SizedBox(height: 16),
