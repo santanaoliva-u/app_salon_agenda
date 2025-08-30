@@ -6,7 +6,7 @@ import 'package:salon_app/provider/user_provider.dart';
 import 'package:salon_app/screens/introduction/splash_screen.dart';
 import 'package:salon_app/screens/settings/settings_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:salon_app/services/api_config_service.dart';
+import 'package:salon_app/services/config_service.dart';
 import 'package:salon_app/l10n/app_localizations.dart';
 
 // Firebase solo se importa si no estamos en Linux
@@ -29,20 +29,19 @@ Future<void> main() async {
     debugPrint('❌ Error cargando variables de entorno: $e');
   }
 
-  // Initialize API configuration service
-  final apiConfigService = ApiConfigService();
+  // Initialize configuration service
   try {
-    await apiConfigService.initialize();
-    debugPrint('✅ ApiConfigService inicializado');
+    await configService.initialize();
+    debugPrint('✅ ConfigService inicializado');
     debugPrint(
-        '🔑 Google Maps configurado: ${apiConfigService.hasValidGoogleMapsKey}');
-    debugPrint('🔥 Firebase habilitado: ${apiConfigService.firebaseEnabled}');
+        '🔑 Google Maps configurado: ${configService.googleMapsApiKey != null}');
+    debugPrint('🔥 Firebase habilitado: ${configService.firebaseEnabled}');
   } catch (e) {
-    debugPrint('❌ Error inicializando ApiConfigService: $e');
+    debugPrint('❌ Error inicializando ConfigService: $e');
   }
 
   // Inicializar Firebase solo en plataformas no web y si está habilitado
-  if (!kIsWeb && apiConfigService.firebaseEnabled) {
+  if (!kIsWeb && configService.firebaseEnabled) {
     try {
       await Firebase.initializeApp();
       debugPrint('✅ Firebase inicializado correctamente');
@@ -54,25 +53,23 @@ Future<void> main() async {
         debugPrint(
             '🔧 Detectado Linux - Firebase no disponible en esta plataforma');
         debugPrint('🔄 Deshabilitando Firebase automáticamente');
-        await apiConfigService.toggleFirebase(false);
+        await configService.updateConfig('FIREBASE_ENABLED', false);
       } else {
         debugPrint('� Continuando sin Firebase - modo limitado');
       }
     }
-  } else if (!kIsWeb && !apiConfigService.firebaseEnabled) {
+  } else if (!kIsWeb && !configService.firebaseEnabled) {
     debugPrint('🔄 Firebase deshabilitado por configuración del usuario');
   } else {
     debugPrint('🌐 Plataforma web - Firebase no inicializado');
   }
 
   debugPrint('🎯 Ejecutando runApp...');
-  runApp(MyApp(apiConfigService: apiConfigService));
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  final ApiConfigService apiConfigService;
-
-  const MyApp({super.key, required this.apiConfigService});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -81,8 +78,8 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider<UserProvider>(
           create: (_) => UserProvider(),
         ),
-        ChangeNotifierProvider<ApiConfigService>.value(
-          value: apiConfigService,
+        ChangeNotifierProvider<ConfigService>.value(
+          value: configService,
         ),
       ],
       child: MaterialApp(

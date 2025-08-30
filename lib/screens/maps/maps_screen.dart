@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:provider/provider.dart';
-import 'package:salon_app/services/api_config_service.dart';
+import 'package:salon_app/services/config_service.dart';
+import 'package:salon_app/services/map_service.dart';
 import 'package:salon_app/widgets/backup_map_widget.dart';
 import 'package:logger/logger.dart';
 
@@ -18,7 +19,7 @@ class _MapsPageState extends State<MapsPage> {
   final Completer<GoogleMapController> _controller = Completer();
   final Logger _logger = Logger();
 
-  static const CameraPosition _kGooglePlex = CameraPosition(
+  CameraPosition _kGooglePlex = const CameraPosition(
     target: LatLng(37.42796133580664, -122.085749655962),
     zoom: 14.4746,
   );
@@ -37,8 +38,20 @@ class _MapsPageState extends State<MapsPage> {
 
   void _initializeMap() async {
     try {
+      // Load dynamic salon location from Firestore
+      final salonLocation = await mapService.getSalonLocation();
+      if (salonLocation != null) {
+        setState(() {
+          _kGooglePlex = CameraPosition(
+            target: salonLocation,
+            zoom: 14.4746,
+          );
+        });
+        _logger.i('Loaded dynamic salon location: $salonLocation');
+      }
+
       await _setCustomMapPin();
-      _addMarkers();
+      await _loadMarkers();
     } catch (e) {
       _logger.e('Error initializing map: $e');
       // Fallback: add markers without custom icon
@@ -58,16 +71,31 @@ class _MapsPageState extends State<MapsPage> {
       _markers.add(
         Marker(
           markerId: const MarkerId('salon_location'),
-          position: const LatLng(37.42796133580664, -122.085749655962),
+          position: _kGooglePlex.target,
           infoWindow: const InfoWindow(
             title: 'Salón de Belleza',
             snippet: 'Dirección del salón',
           ),
           icon:
-              customIcon, // Will use default marker if customIcon failed to load
+              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet),
         ),
       );
     });
+  }
+
+  Future<void> _loadMarkers() async {
+    try {
+      final markers = await mapService.createCustomMarkers(context);
+      setState(() {
+        _markers.clear();
+        _markers.addAll(markers);
+      });
+      _logger.i('Loaded ${markers.length} markers from Firestore');
+    } catch (e) {
+      _logger.e('Error loading markers: $e');
+      // Fallback to static markers
+      _addMarkers();
+    }
   }
 
   void _getPolyline() async {
@@ -106,9 +134,9 @@ class _MapsPageState extends State<MapsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<ApiConfigService>(
-      builder: (context, apiConfig, child) {
-        final hasValidApiKey = apiConfig.hasValidGoogleMapsKey;
+    return Consumer<ConfigService>(
+      builder: (context, config, child) {
+        final hasValidApiKey = config.googleMapsApiKey != null;
 
         return Scaffold(
           appBar: AppBar(
@@ -225,7 +253,7 @@ class _MapsPageState extends State<MapsPage> {
 
   void _showApiKeyDialog(BuildContext context) {
     final TextEditingController apiKeyController = TextEditingController();
-    final apiConfig = context.read<ApiConfigService>();
+    final config = context.read<ConfigService>();
 
     showDialog(
       context: context,
@@ -258,7 +286,8 @@ class _MapsPageState extends State<MapsPage> {
             onPressed: () async {
               final apiKey = apiKeyController.text.trim();
               if (apiKey.isNotEmpty) {
-                final success = await apiConfig.updateGoogleMapsApiKey(apiKey);
+                final success =
+                    await config.updateConfig('GOOGLE_MAPS_API_KEY', apiKey);
                 if (success) {
                   if (mounted) {
                     // ignore: use_build_context_synchronously
